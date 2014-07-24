@@ -16,7 +16,6 @@ class RealTimeEngine(bpy.types.RenderEngine):
     bl_label = "Real Time Engine Framework"
 
     def __init__(self):
-        print("\n\n= = = Init Framework = = =")
         self._watch_list = [
             bpy.data.actions,
             bpy.data.armatures,
@@ -113,3 +112,5 @@ class RealTimeEngine(bpy.types.RenderEngine):
         print(view_matrix)
         print(projection_matrix)
         print(viewport)
+
+

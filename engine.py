@@ -6,6 +6,23 @@ else:
     import bpy
 
 
+DEFAULT_WATCHLIST = [
+    "actions",
+    "armatures",
+    "cameras",
+    "images",
+    "lamps",
+    "materials",
+    "meshes",
+    "objects",
+    "scenes",
+    "sounds",
+    "speakers",
+    "textures",
+    "worlds",
+]
+
+
 def get_collection_name(collection):
     class_name = collection.rna_type.__class__.__name__
     clean_name = class_name.replace("BlendData", "").lower()
@@ -15,32 +32,8 @@ class RealTimeEngine(bpy.types.RenderEngine):
     bl_idname = 'RTE_FRAMEWORK'
     bl_label = "Real Time Engine Framework"
 
-    def __init__(self):
-        self._watch_list = [
-            bpy.data.actions,
-            bpy.data.armatures,
-            bpy.data.cameras,
-            bpy.data.curves,
-            bpy.data.groups,
-            bpy.data.images,
-            bpy.data.lattices,
-            bpy.data.libraries,
-            bpy.data.lamps,
-            bpy.data.materials,
-            bpy.data.meshes,
-            bpy.data.metaballs,
-            bpy.data.movieclips,
-            bpy.data.node_groups,
-            bpy.data.objects,
-            bpy.data.particles,
-            bpy.data.scenes,
-            # bpy.data.shape_keys,
-            bpy.data.sounds,
-            bpy.data.speakers,
-            bpy.data.texts,
-            bpy.data.textures,
-            bpy.data.worlds,
-        ]
+    def __init__(self, watch_list=DEFAULT_WATCHLIST):
+        self._watch_list = [getattr(bpy.data, i) for i in watch_list]
 
         self._tracking_sets = {}
         for collection in self._watch_list:

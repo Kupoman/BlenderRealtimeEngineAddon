@@ -40,6 +40,10 @@ class RealTimeEngine(bpy.types.RenderEngine):
             collection_name = get_collection_name(collection)
             self._tracking_sets[collection_name] = set()
 
+        self._old_vmat = None
+        self._old_pmat = None
+        self._old_viewport = None
+
     def view_update(self, context):
         """ Called when the scene is changed """
         for collection in self._watch_list:
@@ -102,8 +106,12 @@ class RealTimeEngine(bpy.types.RenderEngine):
             print(data.__class__.__name__, data.name, "updated with generic update")
 
     def update_view(self, view_matrix, projection_matrix, viewport):
-        print(view_matrix)
-        print(projection_matrix)
-        print(viewport)
+        print("update_view")
+        if view_matrix != self._old_vmat:
+            print(view_matrix)
+        if projection_matrix != self._old_pmat:
+            print(projection_matrix)
+        if viewport != viewport:
+            print(viewport)
 
 

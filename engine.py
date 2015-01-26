@@ -24,10 +24,16 @@ DEFAULT_WATCHLIST = [
 ]
 
 
+class _BaseFunc:
+    def __call__(self, data_set):
+        pass
+
+
 def get_collection_name(collection):
     class_name = collection.rna_type.__class__.__name__
     clean_name = class_name.replace("BlendData", "").lower()
     return clean_name
+
 
 class RealTimeEngine():
     bl_idname = 'RTE_FRAMEWORK'
@@ -50,6 +56,16 @@ class RealTimeEngine():
         self._old_pmat = None
         self._old_viewport = None
 
+        # Setup update functions
+        for name in watch_list:
+            add_func = _BaseFunc()
+            update_func = _BaseFunc()
+            remove_func = _BaseFunc()
+
+            setattr(self, "add_" + name, add_func)
+            setattr(self, "update_" + name, update_func)
+            setattr(self, "remove_" + name, remove_func)
+
         def main_loop(scene):
             try:
                 self.scene_callback()
@@ -66,19 +82,19 @@ class RealTimeEngine():
             tracking_set = self._tracking_sets[collection_name]
 
             # Check for new items
-            add_method = getattr(self, "add_"+collection_name, self.add_data)
+            add_method = getattr(self, "add_"+collection_name)
             add_set = collection_set - tracking_set
             add_method(add_set)
             tracking_set |= add_set
 
             # Check for removed items
-            remove_method = getattr(self, "remove_"+collection_name, self.remove_data)
+            remove_method = getattr(self, "remove_"+collection_name)
             remove_set = tracking_set - collection_set
             remove_method(remove_set)
             tracking_set -= remove_set
 
             # Check for updates
-            update_method = getattr(self, "update_"+collection_name, self.update_data)
+            update_method = getattr(self, "update_"+collection_name)
             update_set = [item for item in collection if item.is_updated]
             update_method(update_set)
 
@@ -139,30 +155,6 @@ class RealTimeEngine():
         glPopMatrix()
 
         glPopAttrib()
-
-    def add_objects(self, add_set):
-        for data in add_set:
-            print(data.__class__.__name__, data.name, "added with Object add")
-
-    def remove_objects(self, add_set):
-        for data in add_set:
-            print(data.__class__.__name__, data.name, "removed with Object remove")
-
-    def update_objects(self, add_set):
-        for data in add_set:
-            print(data.__class__.__name__, data.name, "updated with Object update")
-
-    def add_data(self, add_set):
-        for data in add_set:
-            print(data.__class__.__name__, data.name, "added with generic add")
-
-    def remove_data(self, remove_set):
-        for data in remove_set:
-            print(data.__class__.__name__, data.name, "removed with generic remove")
-
-    def update_data(self, update_set):
-        for data in update_set:
-            print(data.__class__.__name__, data.name, "updated with generic update")
 
     def update_view(self, view_matrix, projection_matrix, viewport):
         print("update_view")

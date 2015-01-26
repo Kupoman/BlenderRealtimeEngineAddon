@@ -29,7 +29,7 @@ def get_collection_name(collection):
     clean_name = class_name.replace("BlendData", "").lower()
     return clean_name
 
-class RealTimeEngine(bpy.types.RenderEngine):
+class RealTimeEngine():
     bl_idname = 'RTE_FRAMEWORK'
     bl_label = "Real Time Engine Framework"
 

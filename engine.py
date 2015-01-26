@@ -133,8 +133,6 @@ class RealTimeEngine():
         glGenTextures(1, bgl_buffer)
         tex = bgl_buffer[0]
         glBindTexture(GL_TEXTURE_2D, tex)
-        width = viewport[2] - viewport[0]
-        height = viewport[3] - viewport[1]
         glTexImage2D(GL_TEXTURE_2D, 0, 3, self.width, self.height, 0, GL_RGB, GL_BYTE, self.display)
 
         glBegin(GL_QUADS)

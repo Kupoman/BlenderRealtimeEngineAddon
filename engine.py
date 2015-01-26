@@ -54,7 +54,7 @@ class RealTimeEngine(bpy.types.RenderEngine):
             try:
                 self.scene_callback()
             except ReferenceError:
-                bpy.apps.handlers.scene_update_post.remove(main_loop)
+                bpy.app.handlers.scene_update_post.remove(main_loop)
 
         bpy.app.handlers.scene_update_post.append(main_loop)
 

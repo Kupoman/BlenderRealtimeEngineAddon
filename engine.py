@@ -44,6 +44,14 @@ class RealTimeEngine(bpy.types.RenderEngine):
         self._old_pmat = None
         self._old_viewport = None
 
+        def main_loop(scene):
+            try:
+                self.scene_callback()
+            except ReferenceError:
+                bpy.apps.handlers.scene_update_post.remove(main_loop)
+
+        bpy.app.handlers.scene_update_post.append(main_loop)
+
     def view_update(self, context):
         """ Called when the scene is changed """
         for collection in self._watch_list:
@@ -114,4 +122,6 @@ class RealTimeEngine(bpy.types.RenderEngine):
         if viewport != viewport:
             print(viewport)
 
+    def scene_callback(self):
+        pass
 

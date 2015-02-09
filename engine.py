@@ -5,7 +5,9 @@ if "bpy" in locals():
 else:
     import bpy
 
-from bgl import *
+import ctypes
+
+from OpenGL.GL import *
 
 DEFAULT_WATCHLIST = [
     "actions",
@@ -50,7 +52,7 @@ class RealTimeEngine():
         # Display image
         self.width = 1
         self.height = 1
-        self.display = Buffer(GL_BYTE, 3, [0, 0, 0])
+        self.display = (ctypes.c_ubyte * 3)(0, 0, 0)
 
         self._old_vmat = None
         self._old_pmat = None
@@ -73,6 +75,8 @@ class RealTimeEngine():
                 bpy.app.handlers.scene_update_post.remove(main_loop)
 
         bpy.app.handlers.scene_update_post.append(main_loop)
+
+        self.tex = glGenTextures(1)
 
     def view_update(self, context):
         """ Called when the scene is changed """
@@ -128,14 +132,14 @@ class RealTimeEngine():
         glPushMatrix()
         glLoadIdentity()
 
-        bgl_buffer = Buffer(GL_INT, 1)
         glActiveTexture(GL_TEXTURE0)
-        glGenTextures(1, bgl_buffer)
-        tex = bgl_buffer[0]
-        glBindTexture(GL_TEXTURE_2D, tex)
-        glTexImage2D(GL_TEXTURE_2D, 0, 3, self.width, self.height, 0, GL_RGB, GL_BYTE, self.display)
+        glBindTexture(GL_TEXTURE_2D, self.tex)
+        glTexImage2D(GL_TEXTURE_2D, 0, 3, self.width, self.height, 0, GL_RGB, GL_UNSIGNED_BYTE, self.display)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
 
         glBegin(GL_QUADS)
+        glColor3f(1.0, 1.0, 1.0)
         glTexCoord2f(0.0, 0.0)
         glVertex3i(-1, -1, 0)
         glTexCoord2f(1.0, 0.0)
@@ -145,8 +149,6 @@ class RealTimeEngine():
         glTexCoord2f(0.0, 1.0)
         glVertex3i(-1, 1, 0)
         glEnd()
-
-        glDeleteTextures(1, bgl_buffer)
 
         glPopMatrix()
         glMatrixMode(GL_MODELVIEW)

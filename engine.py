@@ -5,9 +5,53 @@ if "bpy" in locals():
 else:
     import bpy
 
-import ctypes
+import os
+import socket
+import struct
+import subprocess
+import sys
+
+import bpy
+import mathutils
 
 from OpenGL.GL import *
+
+from . import socket_api
+
+
+def data_to_dict(data, rstr=""):
+    basic_types = (str, float, int, bool)
+    bpy_collection_type = type(bpy.data.actions)
+    attrs = {}
+    ignore = ('bl_rna', 'rna_type')
+
+    if isinstance(data, bpy.types.Mesh):
+        data.calc_normals_split()
+        data.calc_tessface()
+
+    for attr in [i for i in dir(data) if not i.startswith('__') and i not in ignore]:
+        try:
+            attr_data = getattr(data, attr)
+        except AttributeError:
+            print("Couldn't find attribute:", data, attr)
+            continue
+
+        if isinstance(attr_data, basic_types):
+            attrs[attr] = getattr(data, attr)
+        elif isinstance(attr_data, bpy_collection_type):
+            attrs[attr] = [data_to_dict(i) for i in attr_data]
+        elif isinstance(attr_data, (mathutils.Vector, mathutils.Color)):
+            attrs[attr] = [i for i in attr_data]
+        elif isinstance(attr_data, mathutils.Matrix):
+            attrs[attr] = [i[:] for i in attr_data]
+        elif not callable(attr_data):
+            try:
+                rstr += '.' + attr
+                attrs[attr] = data_to_dict(attr_data, rstr)
+            except AttributeError:
+                pass
+    return attrs
+
 
 DEFAULT_WATCHLIST = [
     "actions",
@@ -26,6 +70,20 @@ DEFAULT_WATCHLIST = [
 ]
 
 
+class _SocketFunc:
+    def __init__(self, _socket, method_id, data_id):
+        self.method_id = method_id
+        self.data_id = data_id
+        self.socket = _socket
+
+    def __call__(self, data_set):
+        if not self.socket:
+            return
+
+        for data in data_set:
+            socket_api.send_message(self.socket, self.method_id, self.data_id, data_to_dict(data))
+
+
 class _BaseFunc:
     def __call__(self, data_set):
         pass
@@ -41,7 +99,26 @@ class RealTimeEngine():
     bl_idname = 'RTE_FRAMEWORK'
     bl_label = "Real Time Engine Framework"
 
-    def __init__(self, watch_list=DEFAULT_WATCHLIST):
+    def __init__(self, program=[], watch_list=DEFAULT_WATCHLIST):
+        self.data_socket = None
+        if program:
+            # Setup socket for client engine
+            self.client_process = subprocess.Popen(program)
+            listen_sock = socket.socket()
+            listen_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            listen_sock.bind(("127.0.0.1", 4242))
+            listen_sock.listen(1)
+            self._use_sockets = True
+
+            # Get data socket from connected client engine
+            listen_sock.settimeout(3)
+            try:
+                self.data_socket = listen_sock.accept()[0]
+                self.data_socket.setblocking(False)
+                print("Socket connection established to engine!")
+            except socket.timeout:
+                print("Failed to establish socket connection to engine.")
+
         self._watch_list = [getattr(bpy.data, i) for i in watch_list]
 
         self._tracking_sets = {}
@@ -60,9 +137,15 @@ class RealTimeEngine():
 
         # Setup update functions
         for name in watch_list:
-            add_func = _BaseFunc()
-            update_func = _BaseFunc()
-            remove_func = _BaseFunc()
+            if self._use_sockets:
+                data_id = socket_api.DataIDs[name]
+                add_func = _SocketFunc(self.data_socket, socket_api.MethodIDs.add, data_id)
+                update_func = _SocketFunc(self.data_socket, socket_api.MethodIDs.update, data_id)
+                remove_func = _SocketFunc(self.data_socket, socket_api.MethodIDs.remove, data_id)
+            else:
+                add_func = _BaseFunc()
+                update_func = _BaseFunc()
+                remove_func = _BaseFunc()
 
             setattr(self, "add_" + name, add_func)
             setattr(self, "update_" + name, update_func)
@@ -157,14 +240,59 @@ class RealTimeEngine():
         glPopAttrib()
 
     def update_view(self, view_matrix, projection_matrix, viewport):
-        print("update_view")
+        if not self.data_socket:
+            return
+
+        def togl(matrix):
+            return [i for col in matrix.col for i in col]
+
         if view_matrix != self._old_vmat:
-            print(view_matrix)
+            self._old_vmat = view_matrix
+            data = {"data": togl(view_matrix)}
+            socket_api.send_message(self.data_socket,
+                                    socket_api.MethodIDs.update,
+                                    socket_api.DataIDs.view,
+                                    data)
+
         if projection_matrix != self._old_pmat:
-            print(projection_matrix)
-        if viewport != viewport:
-            print(viewport)
+            self._old_pmat = projection_matrix
+            data = {"data": togl(projection_matrix)}
+            socket_api.send_message(self.data_socket,
+                                    socket_api.MethodIDs.update,
+                                    socket_api.DataIDs.projection,
+                                    data)
+
+        if viewport != self._old_viewport:
+            self._old_viewport = viewport
+            data = {"width": viewport[2], "height": viewport[3]}
+            socket_api.send_message(self.data_socket,
+                                    socket_api.MethodIDs.update,
+                                    socket_api.DataIDs.viewport,
+                                    data)
 
     def scene_callback(self):
-        pass
+        if not self.data_socket:
+            return
+
+        try:
+            self.data_socket.setblocking(False)
+            self.width, self.height = struct.unpack("HH", self.data_socket.recv(4))
+            data_size = self.width * self.height * 3
+            self.display = (ctypes.c_ubyte * (self.width * self.height * 3))()
+            self.data_socket.setblocking(True)
+            self.data_socket.settimeout(1)
+            remaining = data_size
+            offset = 0
+            while remaining > 0:
+                chunk = self.data_socket.recv(min(2**23, remaining))
+                rcv_size = len(chunk)
+                ctypes.memmove(ctypes.byref(self.display, offset), chunk, rcv_size)
+                remaining -= rcv_size
+                offset += rcv_size
+            self.tag_redraw()
+        except struct.error:
+            pass
+            print("Malformed message received.")
+        except BlockingIOError:
+            pass
 

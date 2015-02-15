@@ -19,6 +19,11 @@ from OpenGL.GL import *
 from . import socket_api
 
 
+# These are global so we can clean them up with no reference to the engine
+g_socket = None
+g_process = None
+
+
 def data_to_dict(data, rstr=""):
     basic_types = (str, float, int, bool)
     bpy_collection_type = type(bpy.data.actions)
@@ -100,10 +105,11 @@ class RealTimeEngine():
     bl_label = "Real Time Engine Framework"
 
     def __init__(self, program=[], watch_list=DEFAULT_WATCHLIST):
-        self.data_socket = None
+        global g_socket, g_process
+
         if program:
             # Setup socket for client engine
-            self.client_process = subprocess.Popen(program)
+            g_process = subprocess.Popen(program)
             listen_sock = socket.socket()
             listen_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             listen_sock.bind(("127.0.0.1", 4242))
@@ -113,8 +119,8 @@ class RealTimeEngine():
             # Get data socket from connected client engine
             listen_sock.settimeout(3)
             try:
-                self.data_socket = listen_sock.accept()[0]
-                self.data_socket.setblocking(False)
+                g_socket = listen_sock.accept()[0]
+                g_socket.setblocking(False)
                 print("Socket connection established to engine!")
             except socket.timeout:
                 print("Failed to establish socket connection to engine.")
@@ -139,9 +145,9 @@ class RealTimeEngine():
         for name in watch_list:
             if self._use_sockets:
                 data_id = socket_api.DataIDs[name]
-                add_func = _SocketFunc(self.data_socket, socket_api.MethodIDs.add, data_id)
-                update_func = _SocketFunc(self.data_socket, socket_api.MethodIDs.update, data_id)
-                remove_func = _SocketFunc(self.data_socket, socket_api.MethodIDs.remove, data_id)
+                add_func = _SocketFunc(g_socket, socket_api.MethodIDs.add, data_id)
+                update_func = _SocketFunc(g_socket, socket_api.MethodIDs.update, data_id)
+                remove_func = _SocketFunc(g_socket, socket_api.MethodIDs.remove, data_id)
             else:
                 add_func = _BaseFunc()
                 update_func = _BaseFunc()
@@ -156,6 +162,9 @@ class RealTimeEngine():
                 self.scene_callback()
             except ReferenceError:
                 bpy.app.handlers.scene_update_post.remove(main_loop)
+                g_socket.close()
+                g_process.kill()
+
 
         bpy.app.handlers.scene_update_post.append(main_loop)
 
@@ -240,7 +249,7 @@ class RealTimeEngine():
         glPopAttrib()
 
     def update_view(self, view_matrix, projection_matrix, viewport):
-        if not self.data_socket:
+        if not g_socket:
             return
 
         def togl(matrix):
@@ -249,7 +258,7 @@ class RealTimeEngine():
         if view_matrix != self._old_vmat:
             self._old_vmat = view_matrix
             data = {"data": togl(view_matrix)}
-            socket_api.send_message(self.data_socket,
+            socket_api.send_message(g_socket,
                                     socket_api.MethodIDs.update,
                                     socket_api.DataIDs.view,
                                     data)
@@ -257,7 +266,7 @@ class RealTimeEngine():
         if projection_matrix != self._old_pmat:
             self._old_pmat = projection_matrix
             data = {"data": togl(projection_matrix)}
-            socket_api.send_message(self.data_socket,
+            socket_api.send_message(g_socket,
                                     socket_api.MethodIDs.update,
                                     socket_api.DataIDs.projection,
                                     data)
@@ -265,26 +274,26 @@ class RealTimeEngine():
         if viewport != self._old_viewport:
             self._old_viewport = viewport
             data = {"width": viewport[2], "height": viewport[3]}
-            socket_api.send_message(self.data_socket,
+            socket_api.send_message(g_socket,
                                     socket_api.MethodIDs.update,
                                     socket_api.DataIDs.viewport,
                                     data)
 
     def scene_callback(self):
-        if not self.data_socket:
+        if not g_socket:
             return
 
         try:
-            self.data_socket.setblocking(False)
-            self.width, self.height = struct.unpack("HH", self.data_socket.recv(4))
+            g_socket.setblocking(False)
+            self.width, self.height = struct.unpack("HH", g_socket.recv(4))
             data_size = self.width * self.height * 3
             self.display = (ctypes.c_ubyte * (self.width * self.height * 3))()
-            self.data_socket.setblocking(True)
-            self.data_socket.settimeout(1)
+            g_socket.setblocking(True)
+            g_socket.settimeout(1)
             remaining = data_size
             offset = 0
             while remaining > 0:
-                chunk = self.data_socket.recv(min(2**23, remaining))
+                chunk = g_socket.recv(min(2**23, remaining))
                 rcv_size = len(chunk)
                 ctypes.memmove(ctypes.byref(self.display, offset), chunk, rcv_size)
                 remaining -= rcv_size

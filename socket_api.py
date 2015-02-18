@@ -13,29 +13,18 @@ class AutoNumber(enum.Enum):
 
 
 class MethodIDs(AutoNumber):
+    __order__ = "add update remove"
     add = ()
     update = ()
     remove = ()
 
 
 class DataIDs(AutoNumber):
+    __order__ = "view projection viewport gltf"
     view = ()
     projection = ()
     viewport = ()
-
-    actions = ()
-    armatures = ()
-    cameras = ()
-    images = ()
-    lamps = ()
-    materials = ()
-    meshes = ()
-    objects = ()
-    scenes = ()
-    sounds = ()
-    speakers = ()
-    textures = ()
-    worlds = ()
+    gltf = ()
 
 
 def send_message(_socket, method, data_id, data):

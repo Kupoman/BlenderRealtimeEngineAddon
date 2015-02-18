@@ -22,71 +22,23 @@ from . import socket_api
 # These are global so we can clean them up with no reference to the engine
 g_socket = None
 g_process = None
-
-
-def data_to_dict(data, rstr=""):
-    basic_types = (str, float, int, bool)
-    bpy_collection_type = type(bpy.data.actions)
-    attrs = {}
-    ignore = ('bl_rna', 'rna_type')
-
-    if isinstance(data, bpy.types.Mesh):
-        data.calc_normals_split()
-        data.calc_tessface()
-
-    for attr in [i for i in dir(data) if not i.startswith('__') and i not in ignore]:
-        try:
-            attr_data = getattr(data, attr)
-        except AttributeError:
-            print("Couldn't find attribute:", data, attr)
-            continue
-
-        if isinstance(attr_data, basic_types):
-            attrs[attr] = getattr(data, attr)
-        elif isinstance(attr_data, bpy_collection_type):
-            attrs[attr] = [data_to_dict(i) for i in attr_data]
-        elif isinstance(attr_data, (mathutils.Vector, mathutils.Color)):
-            attrs[attr] = [i for i in attr_data]
-        elif isinstance(attr_data, mathutils.Matrix):
-            attrs[attr] = [i[:] for i in attr_data]
-        elif not callable(attr_data):
-            try:
-                rstr += '.' + attr
-                attrs[attr] = data_to_dict(attr_data, rstr)
-            except AttributeError:
-                pass
-    return attrs
-
+from . import blendergltf
 
 DEFAULT_WATCHLIST = [
-    "actions",
-    "armatures",
+    #"actions",
+    #"armatures",
     "cameras",
-    "images",
+    #"images",
     "lamps",
     "materials",
     "meshes",
     "objects",
     "scenes",
-    "sounds",
-    "speakers",
-    "textures",
-    "worlds",
+    #"sounds",
+    #"speakers",
+    #"textures",
+    #"worlds",
 ]
-
-
-class _SocketFunc:
-    def __init__(self, _socket, method_id, data_id):
-        self.method_id = method_id
-        self.data_id = data_id
-        self.socket = _socket
-
-    def __call__(self, data_set):
-        if not self.socket:
-            return
-
-        for data in data_set:
-            socket_api.send_message(self.socket, self.method_id, self.data_id, data_to_dict(data))
 
 
 class _BaseFunc:
@@ -126,6 +78,8 @@ class RealTimeEngine():
                 print("Failed to establish socket connection to engine.")
 
         self._watch_list = [getattr(bpy.data, i) for i in watch_list]
+        self._scene_delta = {}
+        self._remove_delta = {}
 
         self._tracking_sets = {}
         for collection in self._watch_list:
@@ -143,15 +97,9 @@ class RealTimeEngine():
 
         # Setup update functions
         for name in watch_list:
-            if self._use_sockets:
-                data_id = socket_api.DataIDs[name]
-                add_func = _SocketFunc(g_socket, socket_api.MethodIDs.add, data_id)
-                update_func = _SocketFunc(g_socket, socket_api.MethodIDs.update, data_id)
-                remove_func = _SocketFunc(g_socket, socket_api.MethodIDs.remove, data_id)
-            else:
-                add_func = _BaseFunc()
-                update_func = _BaseFunc()
-                remove_func = _BaseFunc()
+            add_func = _BaseFunc()
+            update_func = _BaseFunc()
+            remove_func = _BaseFunc()
 
             setattr(self, "add_" + name, add_func)
             setattr(self, "update_" + name, update_func)
@@ -172,6 +120,9 @@ class RealTimeEngine():
 
     def view_update(self, context):
         """ Called when the scene is changed """
+        self._remove_delta = {}
+        self._scene_delta = {}
+
         for collection in self._watch_list:
             collection_name = get_collection_name(collection)
             collection_set = set(collection)
@@ -187,12 +138,19 @@ class RealTimeEngine():
             remove_method = getattr(self, "remove_"+collection_name)
             remove_set = tracking_set - collection_set
             remove_method(remove_set)
+            if remove_set:
+                self._remove_delta[collection_name] = remove_set
             tracking_set -= remove_set
 
             # Check for updates
             update_method = getattr(self, "update_"+collection_name)
-            update_set = [item for item in collection if item.is_updated]
+            update_set = {item for item in collection if item.is_updated}
             update_method(update_set)
+            if add_set or update_set:
+                self._scene_delta[collection_name] = add_set | update_set
+
+        if self._scene_delta:
+            socket_api.send_message(self.data_socket, socket_api.MethodIDs.update, socket_api.DataIDs.gltf, blendergltf.export_gltf(self._scene_delta))
 
     def view_draw(self, context):
         """ Called when viewport settings change """

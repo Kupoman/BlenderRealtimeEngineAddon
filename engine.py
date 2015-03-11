@@ -150,7 +150,7 @@ class RealTimeEngine():
                 self._scene_delta[collection_name] = add_set | update_set
 
         if self._scene_delta:
-            socket_api.send_message(self.data_socket, socket_api.MethodIDs.update, socket_api.DataIDs.gltf, blendergltf.export_gltf(self._scene_delta))
+            socket_api.send_message(g_socket, socket_api.MethodIDs.update, socket_api.DataIDs.gltf, blendergltf.export_gltf(self._scene_delta))
 
     def view_draw(self, context):
         """ Called when viewport settings change """

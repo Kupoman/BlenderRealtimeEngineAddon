@@ -350,13 +350,17 @@ def export_lights(lamps):
             print("Unsupported lamp type on {}: {}".format(light.name, light.type))
             return {}
 
-    gltf = {lamp.name: export_light(lamp) for lamp in lamps}
-
-    # Remove unsupported lights
-    for k, v in gltf.items():
-        if not v:
-            del gltf[k]
-
+    gltf = {}
+    
+    for lamp in lamps:
+        exported_data = exported_light(lamp)
+        
+        # Remove unsupported lights
+        if not exported_data:
+            continue
+        
+        gltf[lamp.name] = exported_data
+    
     return gltf
 
 

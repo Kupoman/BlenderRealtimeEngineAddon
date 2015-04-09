@@ -2,6 +2,7 @@ import enum
 import json
 import socket
 import struct
+import time
 
 
 class AutoNumber(enum.Enum):
@@ -65,3 +66,67 @@ def decode_cmd_message(message):
 
 def decode_size_message(message):
     return struct.unpack('I', message)[0]
+
+
+class SocketClient(object):
+    def __init__(self, handler):
+        self.handler = handler
+
+        self.socket = socket.socket()
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.socket.connect(("127.0.0.1", 4242))
+
+    def run(self):
+        try:
+            while True:
+                try:
+                    self.socket.setblocking(False)
+                    message = self.socket.recv(1)
+                    if message:
+                        self.socket.setblocking(True)
+                        method_id, data_id = decode_cmd_message(message)
+                        size = decode_size_message(self.socket.recv(4))
+    
+                        data = b""
+                        remaining = size
+                        while remaining > 0:
+                            chunk = self.socket.recv(min(1024, remaining))
+                            remaining -= len(chunk)
+                            data += chunk
+                        data = json.loads(data.decode())
+                        if data_id == DataIDs.projection:
+                            if hasattr(self.handler, 'handle_projection'):
+                                self.handler.handle_projection(data['data'])
+                        elif data_id == DataIDs.view:
+                            if hasattr(self.handler, 'handle_view'):
+                                self.handler.handle_view(data['data'])
+                        elif data_id == DataIDs.viewport:
+                            if hasattr(self.handler, 'handle_viewport'):
+                                self.handler.handle_viewport(data['width'], data['height'])
+                        elif data_id == DataIDs.gltf:
+                            if hasattr(self.handler, 'handle_gltf'):
+                                self.handler.handle_gltf(data)
+                except socket.error:
+                    break
+    
+            # Return output
+            img_data, sx, sy = self.handler.get_render_image()
+            data_size = len(img_data)
+            self.socket.setblocking(True)
+            try:
+                self.socket.send(struct.pack("HH", sx, sy))
+
+                start_time = time.clock()
+                sent_count = 0
+
+                while sent_count < data_size:
+                    sent_count += self.socket.send(img_data[sent_count:data_size - sent_count])
+                etime = time.clock() - start_time
+                tx = 0 if etime == 0 else sent_count*8/1024/1024/etime
+                #print("Sent %d bytes in %.2f ms (%.2f Mbps)" % (sent_count, etime*1000, tx))
+            except socket.timeout:
+                print("Failed to send result data")
+        except socket.error as e:
+            print("Closing")
+            self.socket.close()
+            sys.exit()

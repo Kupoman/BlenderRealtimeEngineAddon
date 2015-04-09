@@ -224,7 +224,7 @@ def export_materials(materials):
 
                     'specular': list((material.specular_color * material.specular_intensity)[:]) + [material.specular_alpha],
                     'shininess': material.specular_hardness,
-                    'textures': [ts.texture.image.filepath.replace('//', '') for ts in material.texture_slots if ts and ts.texture.type == 'IMAGE'],
+                    'textures': [bpy.path.abspath(ts.texture.image.filepath) for ts in material.texture_slots if ts and ts.texture.type == 'IMAGE'],
                     'uv_layers': [ts.uv_layer for ts in material.texture_slots if ts]
                 }
             }

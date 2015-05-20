@@ -101,19 +101,19 @@ class Buffer:
             #if bv['target'] == Buffer.ARRAY_BUFFER:
             #    idx = bv['byteoffset']
             #    while idx < bv['byteoffset'] + bv['bytelength']:
-            #        print(struct.unpack_from('<ffffff', data, idx))
-            #        idx += 24
+            #    	print(struct.unpack_from('<ffffff', data, idx))
+            #    	idx += 24
             #if bv['target'] == Buffer.ELEMENT_ARRAY_BUFFER:
             #    idx = bv['byteoffset']
             #    while idx < bv['byteoffset'] + bv['bytelength']:
-            #        print(struct.unpack_from('<HHH', data, idx))
-            #        idx += 6
+            #    	print(struct.unpack_from('<HHH', data, idx))
+            #    	idx += 6
 
         uri = 'data:text/plain;base64,' + base64.b64encode(data).decode('ascii')
         #fname = '{}.bin'.format(self.name)
         #with open(fname, 'wb') as f:
         #    for bv in self.buffer_views.values():
-        #        f.write(bv['data'])
+        #    	f.write(bv['data'])
 
         #uri = 'data:text/plain;base64,'
         #with open(fname, 'rb') as f:
@@ -351,16 +351,16 @@ def export_lights(lamps):
             return {}
 
     gltf = {}
-    
+
     for lamp in lamps:
-        exported_data = exported_light(lamp)
-        
+        exported_data = export_light(lamp)
+
         # Remove unsupported lights
         if not exported_data:
             continue
-        
+
         gltf[lamp.name] = exported_data
-    
+
     return gltf
 
 

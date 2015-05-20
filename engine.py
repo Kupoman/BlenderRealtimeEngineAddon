@@ -1,9 +1,11 @@
 if "bpy" in locals():
     import imp
-    # imp.reload(renderer)
-    # imp.reload(converter)
+    imp.reload(socket_api)
+    imp.reload(blendergltf)
 else:
     import bpy
+    from . import socket_api
+    from . import blendergltf
 
 import os
 import socket
@@ -16,13 +18,11 @@ import mathutils
 
 from OpenGL.GL import *
 
-from . import socket_api
 
 
 # These are global so we can clean them up with no reference to the engine
 g_socket = None
 g_process = None
-from . import blendergltf
 
 DEFAULT_WATCHLIST = [
     #"actions",
@@ -110,8 +110,10 @@ class RealTimeEngine():
                 self.scene_callback()
             except ReferenceError:
                 bpy.app.handlers.scene_update_post.remove(main_loop)
-                g_socket.close()
-                g_process.kill()
+                if g_socket:
+                    g_socket.close()
+                if g_process:
+                    g_process.kill()
 
 
         bpy.app.handlers.scene_update_post.append(main_loop)
@@ -150,7 +152,10 @@ class RealTimeEngine():
                 self._scene_delta[collection_name] = add_set | update_set
 
         if self._scene_delta:
-            socket_api.send_message(g_socket, socket_api.MethodIDs.update, socket_api.DataIDs.gltf, blendergltf.export_gltf(self._scene_delta))
+            if g_socket:
+                socket_api.send_message(g_socket, socket_api.MethodIDs.update, socket_api.DataIDs.gltf, blendergltf.export_gltf(self._scene_delta))
+            else:
+                blendergltf.export_gltf(self._scene_delta)
 
     def view_draw(self, context):
         """ Called when viewport settings change """

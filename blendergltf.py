@@ -59,11 +59,13 @@ class Buffer:
             else:
                 raise ValueError("Bad component type")
 
-        def _get_ptr(self, idx):
-            addr = (idx % self.type_size) * struct.calcsize(self._ctype) + idx // self.type_size * self.byte_stride
-            addr += self.byte_offset
+            self._ctype_size = struct.calcsize(self._ctype)
+            self._buffer_data = self.buffer._get_buffer_data(self.buffer_view)
 
-            return addr
+        # Inlined for performance, leaving this here as reference
+        # def _get_ptr(self, idx):
+            # addr = ((idx % self.type_size) * self._ctype_size + idx // self.type_size * self.byte_stride) + self.byte_offset
+            # return addr
 
         def __len__(self):
             return self.count
@@ -72,17 +74,17 @@ class Buffer:
             if not isinstance(idx, int):
                 raise TypeError("Expected an integer index")
 
-            ptr = self._get_ptr(idx)
+            ptr = ((idx % self.type_size) * self._ctype_size + idx // self.type_size * self.byte_stride) + self.byte_offset
 
-            return struct.unpack_from(self._ctype, self.buffer._get_buffer_data(self.buffer_view), ptr)[0]
+            return struct.unpack_from(self._ctype, self._buffer_data, ptr)[0]
 
         def __setitem__(self, idx, value):
             if not isinstance(idx, int):
                 raise TypeError("Expected an integer index")
 
-            ptr = self._get_ptr(idx)
+            ptr = ((idx % self.type_size) * self._ctype_size + idx // self.type_size * self.byte_stride) + self.byte_offset
 
-            struct.pack_into(self._ctype, self.buffer._get_buffer_data(self.buffer_view), ptr, value)
+            struct.pack_into(self._ctype, self._buffer_data, ptr, value)
 
     def __init__(self, name, uri=None):
         self.name = '{}_buffer'.format(name)
@@ -258,9 +260,12 @@ def export_meshes(meshes):
             #print('vertex', vtx.co)
             #print('normal', loop.normal)
 
+            co = vtx.co
+            normal = loop.normal
+
             for j in range(3):
-                vdata[(i * 3) + j] = vtx.co[j]
-                ndata[(i * 3) + j] = loop.normal[j]
+                vdata[(i * 3) + j] = co[j]
+                ndata[(i * 3) + j] = normal[j]
 
             for j, uv_layer in enumerate(me.uv_layers):
                 tdata[j][i * 2] = uv_layer.data[i].uv.x

@@ -1,8 +1,10 @@
-import bpy
+if "bpy" in locals():
+    import imp
+    imp.reload(engine)
+else:
+    import bpy
+    from .brte import engine
 
-from .brte.engine import RealTimeEngine
-
-
-class DebugEngine(bpy.types.RenderEngine, RealTimeEngine):
+class DebugEngine(bpy.types.RenderEngine, engine.RealTimeEngine):
     bl_idname = 'RTE_DEBUG'
     bl_label = 'RTE Debug'

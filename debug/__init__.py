@@ -10,10 +10,12 @@ bl_info = {
     "support": 'TESTING',
     "category": "Render"}
 
-import bpy
-
-import sys
-from .addon import DebugEngine
+if "bpy" in locals():
+    import imp
+    imp.reload(addon)
+else:
+    import bpy
+    from .addon import DebugEngine
 
 
 def register():

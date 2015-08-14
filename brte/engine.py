@@ -1,11 +1,11 @@
 if "bpy" in locals():
     import imp
     imp.reload(socket_api)
-    imp.reload(blendergltf)
+    imp.reload(_converters)
 else:
     import bpy
     from . import socket_api
-    from . import blendergltf
+    from . import converters as _converters
 
 import os
 import socket
@@ -17,8 +17,6 @@ import bpy
 import mathutils
 
 from OpenGL.GL import *
-
-
 
 # These are global so we can clean them up with no reference to the engine
 g_socket = None
@@ -59,6 +57,8 @@ class RealTimeEngine():
     def __init__(self, program=[], watch_list=DEFAULT_WATCHLIST):
         global g_socket, g_process
 
+        self.converter = _converters.BTFConverter()
+
         if program:
             # Setup socket for client engine
             g_process = subprocess.Popen(program)
@@ -78,8 +78,7 @@ class RealTimeEngine():
                 print("Failed to establish socket connection to engine.")
 
         self._watch_list = [getattr(bpy.data, i) for i in watch_list]
-        self._scene_delta = {}
-        self._remove_delta = {}
+
 
         self._tracking_sets = {}
         for collection in self._watch_list:
@@ -122,8 +121,9 @@ class RealTimeEngine():
 
     def view_update(self, context):
         """ Called when the scene is changed """
-        self._remove_delta = {}
-        self._scene_delta = {}
+        remove_delta = {}
+        add_delta = {}
+        update_delta = {}
 
         for collection in self._watch_list:
             collection_name = get_collection_name(collection)
@@ -134,28 +134,28 @@ class RealTimeEngine():
             add_method = getattr(self, "add_"+collection_name)
             add_set = collection_set - tracking_set
             add_method(add_set)
+            add_delta[collection_name] = add_set
             tracking_set |= add_set
 
             # Check for removed items
             remove_method = getattr(self, "remove_"+collection_name)
             remove_set = tracking_set - collection_set
             remove_method(remove_set)
-            if remove_set:
-                self._remove_delta[collection_name] = remove_set
+            remove_delta[collection_name] = remove_set
             tracking_set -= remove_set
 
             # Check for updates
             update_method = getattr(self, "update_"+collection_name)
             update_set = {item for item in collection if item.is_updated}
             update_method(update_set)
-            if add_set or update_set:
-                self._scene_delta[collection_name] = add_set | update_set
+            update_delta[collection_name] = update_set
 
-        if self._scene_delta:
+        def converter_callback(data):
             if g_socket:
-                socket_api.send_message(g_socket, socket_api.MethodIDs.update, socket_api.DataIDs.gltf, blendergltf.export_gltf(self._scene_delta))
-            else:
-                blendergltf.export_gltf(self._scene_delta)
+                socket_api.send_message(g_socket, socket_api.MethodIDs.update,
+                    socket_api.DataIDs.gltf, data)
+
+        self.converter.convert(add_delta, update_delta, remove_delta, converter_callback)
 
     def view_draw(self, context):
         """ Called when viewport settings change """
@@ -267,4 +267,3 @@ class RealTimeEngine():
             print("Malformed message received.")
         except BlockingIOError:
             pass
-

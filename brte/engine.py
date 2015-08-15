@@ -78,15 +78,6 @@ class RealTimeEngine():
         self._old_pmat = None
         self._old_viewport = None
 
-        # Setup update functions
-        for name in watch_list:
-            add_func = _BaseFunc()
-            update_func = _BaseFunc()
-            remove_func = _BaseFunc()
-
-            setattr(self, "add_" + name, add_func)
-            setattr(self, "update_" + name, update_func)
-            setattr(self, "remove_" + name, remove_func)
 
         def main_loop(scene):
             try:
@@ -114,23 +105,17 @@ class RealTimeEngine():
             tracking_set = self._tracking_sets[collection_name]
 
             # Check for new items
-            add_method = getattr(self, "add_"+collection_name)
             add_set = collection_set - tracking_set
-            add_method(add_set)
             add_delta[collection_name] = add_set
             tracking_set |= add_set
 
             # Check for removed items
-            remove_method = getattr(self, "remove_"+collection_name)
             remove_set = tracking_set - collection_set
-            remove_method(remove_set)
             remove_delta[collection_name] = remove_set
             tracking_set -= remove_set
 
             # Check for updates
-            update_method = getattr(self, "update_"+collection_name)
             update_set = {item for item in collection if item.is_updated}
-            update_method(update_set)
             update_delta[collection_name] = update_set
 
         def converter_callback(data):

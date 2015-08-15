@@ -2,25 +2,25 @@ if "bpy" in locals():
     import imp
     imp.reload(socket_api)
     imp.reload(_converters)
+    imp.reload(processors)
 else:
     import bpy
     from . import socket_api
     from . import converters as _converters
+    from . import processors
 
 import os
 import socket
 import struct
 import subprocess
 import sys
+import time
 
 import bpy
 import mathutils
 
 from OpenGL.GL import *
 
-# These are global so we can clean them up with no reference to the engine
-g_socket = None
-g_process = None
 
 DEFAULT_WATCHLIST = [
     #"actions",
@@ -55,40 +55,24 @@ class RealTimeEngine():
     bl_label = "Real Time Engine Framework"
 
     def __init__(self, program=[], watch_list=DEFAULT_WATCHLIST):
-        global g_socket, g_process
+        # Display image
+        self.width = 1
+        self.height = 1
+        self.clock = time.perf_counter()
+        self.display = processors.DoubleBuffer(3, self.draw_callback)
+
+        self.draw_lock = False
+        self.override_context = None
 
         self.converter = _converters.BTFConverter()
-
-        if program:
-            # Setup socket for client engine
-            g_process = subprocess.Popen(program)
-            listen_sock = socket.socket()
-            listen_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            listen_sock.bind(("127.0.0.1", 4242))
-            listen_sock.listen(1)
-            self._use_sockets = True
-
-            # Get data socket from connected client engine
-            listen_sock.settimeout(3)
-            try:
-                g_socket = listen_sock.accept()[0]
-                g_socket.setblocking(False)
-                print("Socket connection established to engine!")
-            except socket.timeout:
-                print("Failed to establish socket connection to engine.")
+        self.processor = processors.DummyProcessor(self.display)
 
         self._watch_list = [getattr(bpy.data, i) for i in watch_list]
-
 
         self._tracking_sets = {}
         for collection in self._watch_list:
             collection_name = get_collection_name(collection)
             self._tracking_sets[collection_name] = set()
-
-        # Display image
-        self.width = 1
-        self.height = 1
-        self.display = (ctypes.c_ubyte * 3)(0, 0, 0)
 
         self._old_vmat = None
         self._old_pmat = None
@@ -106,14 +90,13 @@ class RealTimeEngine():
 
         def main_loop(scene):
             try:
+                new_time = time.perf_counter()
+                dt = new_time - self.clock
+                self.clock = new_time
                 self.scene_callback()
+                self.processor.update(dt)
             except ReferenceError:
                 bpy.app.handlers.scene_update_post.remove(main_loop)
-                if g_socket:
-                    g_socket.close()
-                if g_process:
-                    g_process.kill()
-
 
         bpy.app.handlers.scene_update_post.append(main_loop)
 
@@ -151,14 +134,13 @@ class RealTimeEngine():
             update_delta[collection_name] = update_set
 
         def converter_callback(data):
-            if g_socket:
-                socket_api.send_message(g_socket, socket_api.MethodIDs.update,
-                    socket_api.DataIDs.gltf, data)
+            self.processor.process_data(data)
 
         self.converter.convert(add_delta, update_delta, remove_delta, converter_callback)
 
     def view_draw(self, context):
         """ Called when viewport settings change """
+        self.override_context = context.copy()
         region = context.region
         view = context.region_data
 
@@ -170,11 +152,11 @@ class RealTimeEngine():
 
         self.update_view(vmat, pmat, viewport)
 
-        glGetError()
         glPushAttrib(GL_ALL_ATTRIB_BITS)
 
         glDisable(GL_DEPTH_TEST)
         glDisable(GL_CULL_FACE)
+        glDisable(GL_STENCIL_TEST)
         glEnable(GL_TEXTURE_2D)
 
         glClearColor(0, 0, 1, 1)
@@ -189,7 +171,8 @@ class RealTimeEngine():
 
         glActiveTexture(GL_TEXTURE0)
         glBindTexture(GL_TEXTURE_2D, self.tex)
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, self.width, self.height, 0, GL_RGB, GL_UNSIGNED_BYTE, self.display)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, self.width, self.height, 0, GL_RGB,
+            GL_UNSIGNED_BYTE, self.display.read_buffer)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
 
@@ -212,8 +195,7 @@ class RealTimeEngine():
         glPopAttrib()
 
     def update_view(self, view_matrix, projection_matrix, viewport):
-        if not g_socket:
-            return
+        #TODO: Add to converter data
 
         def togl(matrix):
             return [i for col in matrix.col for i in col]
@@ -221,49 +203,19 @@ class RealTimeEngine():
         if view_matrix != self._old_vmat:
             self._old_vmat = view_matrix
             data = {"data": togl(view_matrix)}
-            socket_api.send_message(g_socket,
-                                    socket_api.MethodIDs.update,
-                                    socket_api.DataIDs.view,
-                                    data)
 
         if projection_matrix != self._old_pmat:
             self._old_pmat = projection_matrix
             data = {"data": togl(projection_matrix)}
-            socket_api.send_message(g_socket,
-                                    socket_api.MethodIDs.update,
-                                    socket_api.DataIDs.projection,
-                                    data)
 
         if viewport != self._old_viewport:
             self._old_viewport = viewport
             data = {"width": viewport[2], "height": viewport[3]}
-            socket_api.send_message(g_socket,
-                                    socket_api.MethodIDs.update,
-                                    socket_api.DataIDs.viewport,
-                                    data)
+
+    def draw_callback(self):
+        '''Forces a view_draw to occur'''
+        view = self.override_context['region_data']
+        view.view_matrix = view.view_matrix
 
     def scene_callback(self):
-        if not g_socket:
-            return
-
-        try:
-            g_socket.setblocking(False)
-            self.width, self.height = struct.unpack("HH", g_socket.recv(4))
-            data_size = self.width * self.height * 3
-            self.display = (ctypes.c_ubyte * (self.width * self.height * 3))()
-            g_socket.setblocking(True)
-            g_socket.settimeout(1)
-            remaining = data_size
-            offset = 0
-            while remaining > 0:
-                chunk = g_socket.recv(min(2**23, remaining))
-                rcv_size = len(chunk)
-                ctypes.memmove(ctypes.byref(self.display, offset), chunk, rcv_size)
-                remaining -= rcv_size
-                offset += rcv_size
-            self.tag_redraw()
-        except struct.error:
-            pass
-            print("Malformed message received.")
-        except BlockingIOError:
-            pass
+        pass

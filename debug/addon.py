@@ -3,7 +3,7 @@ if "bpy" in locals():
     imp.reload(engine)
 else:
     import bpy
-    from .brte import engine
+    from brte import engine
 
 class DebugEngine(bpy.types.RenderEngine, engine.RealTimeEngine):
     bl_idname = 'RTE_DEBUG'

@@ -15,6 +15,7 @@ import struct
 import subprocess
 import sys
 import time
+import collections
 
 import bpy
 import mathutils
@@ -43,6 +44,7 @@ class _BaseFunc:
     def __call__(self, data_set):
         pass
 
+ViewportTuple = collections.namedtuple('Viewport', ('height', 'width'))
 
 def get_collection_name(collection):
     class_name = collection.rna_type.__class__.__name__
@@ -67,6 +69,11 @@ class RealTimeEngine():
         self.converter = _converters.BTFConverter()
         self.processor = processors.DummyProcessor(self.display)
 
+        self.remove_delta = {}
+        self.add_delta = {}
+        self.update_delta = {}
+        self.view_delta = {}
+
         self._watch_list = [getattr(bpy.data, i) for i in watch_list]
 
         self._tracking_sets = {}
@@ -85,6 +92,14 @@ class RealTimeEngine():
                 dt = new_time - self.clock
                 self.clock = new_time
                 self.scene_callback()
+                def converter_callback(data):
+                    self.processor.process_data(data)
+
+                self.converter.convert(self.add_delta, self.update_delta, self.remove_delta, self.view_delta, converter_callback)
+                self.add_delta.clear()
+                self.update_delta.clear()
+                self.remove_delta.clear()
+                self.view_delta.clear()
                 self.processor.update(dt)
             except ReferenceError:
                 bpy.app.handlers.scene_update_post.remove(main_loop)
@@ -95,9 +110,6 @@ class RealTimeEngine():
 
     def view_update(self, context):
         """ Called when the scene is changed """
-        remove_delta = {}
-        add_delta = {}
-        update_delta = {}
 
         for collection in self._watch_list:
             collection_name = get_collection_name(collection)
@@ -106,22 +118,17 @@ class RealTimeEngine():
 
             # Check for new items
             add_set = collection_set - tracking_set
-            add_delta[collection_name] = add_set
+            self.add_delta[collection_name] = add_set
             tracking_set |= add_set
 
             # Check for removed items
             remove_set = tracking_set - collection_set
-            remove_delta[collection_name] = remove_set
+            self.remove_delta[collection_name] = remove_set
             tracking_set -= remove_set
 
             # Check for updates
             update_set = {item for item in collection if item.is_updated}
-            update_delta[collection_name] = update_set
-
-        def converter_callback(data):
-            self.processor.process_data(data)
-
-        self.converter.convert(add_delta, update_delta, remove_delta, converter_callback)
+            self.update_delta[collection_name] = update_set
 
     def view_draw(self, context):
         """ Called when viewport settings change """
@@ -180,22 +187,17 @@ class RealTimeEngine():
         glPopAttrib()
 
     def update_view(self, view_matrix, projection_matrix, viewport):
-        #TODO: Add to converter data
-
-        def togl(matrix):
-            return [i for col in matrix.col for i in col]
-
         if view_matrix != self._old_vmat:
             self._old_vmat = view_matrix
-            data = {"data": togl(view_matrix)}
+            self.view_delta['view_matrix'] = view_matrix
 
         if projection_matrix != self._old_pmat:
             self._old_pmat = projection_matrix
-            data = {"data": togl(projection_matrix)}
+            self.view_delta['projection_matrix'] = projection_matrix
 
         if viewport != self._old_viewport:
             self._old_viewport = viewport
-            data = {"width": viewport[2], "height": viewport[3]}
+            self.view_delta['viewport'] = ViewportTuple(width=viewport[2], height=viewport[3])
 
     def draw_callback(self):
         '''Forces a view_draw to occur'''

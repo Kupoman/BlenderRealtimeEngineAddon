@@ -91,16 +91,7 @@ class RealTimeEngine():
                 new_time = time.perf_counter()
                 dt = new_time - self.clock
                 self.clock = new_time
-                self.scene_callback()
-                def converter_callback(data):
-                    self.processor.process_data(data)
-
-                self.converter.convert(self.add_delta, self.update_delta, self.remove_delta, self.view_delta, converter_callback)
-                self.add_delta.clear()
-                self.update_delta.clear()
-                self.remove_delta.clear()
-                self.view_delta.clear()
-                self.processor.update(dt)
+                self.main_update(dt)
             except ReferenceError:
                 bpy.app.handlers.scene_update_post.remove(main_loop)
 
@@ -204,5 +195,14 @@ class RealTimeEngine():
         view = self.override_context['region_data']
         view.view_matrix = view.view_matrix
 
-    def scene_callback(self):
-        pass
+    def main_update(self, dt):
+        def converter_callback(data):
+            self.processor.process_data(data)
+
+        self.converter.convert(self.add_delta, self.update_delta, self.remove_delta, self.view_delta, converter_callback)
+        self.add_delta.clear()
+        self.update_delta.clear()
+        self.remove_delta.clear()
+        self.view_delta.clear()
+        self.processor.update(dt)
+

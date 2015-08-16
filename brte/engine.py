@@ -192,8 +192,7 @@ class RealTimeEngine():
 
     def draw_callback(self):
         '''Forces a view_draw to occur'''
-        view = self.override_context['region_data']
-        view.view_matrix = view.view_matrix
+        self.tag_redraw()
 
     def main_update(self, dt):
         def converter_callback(data):

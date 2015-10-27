@@ -27,7 +27,7 @@ DEFAULT_WATCHLIST = [
     #"actions",
     #"armatures",
     "cameras",
-    #"images",
+    "images",
     "lamps",
     "materials",
     "meshes",
@@ -35,7 +35,7 @@ DEFAULT_WATCHLIST = [
     "scenes",
     #"sounds",
     #"speakers",
-    #"textures",
+    "textures",
     #"worlds",
 ]
 

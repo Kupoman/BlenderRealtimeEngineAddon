@@ -442,6 +442,24 @@ def export_buffers():
     return gltf
 
 
+def export_images(images):
+    def export_image(image):
+        pixels = bytearray([int(p * 255) for p in image.pixels])
+        return {
+            'uri' : 'data:text/plain;base64,' + base64.b64encode(pixels).decode('ascii'),
+        }
+    return {image.name: export_image(image) for image in images}
+
+
+def export_textures(textures):
+    def export_texture(texture):
+        return {
+            'sampler' : 'default',
+            'source' : texture.image.name,
+        }
+    return {texture.name: export_texture(texture) for texture in textures}
+
+
 def export_gltf(scene_delta):
     global g_buffers
 
@@ -453,22 +471,22 @@ def export_gltf(scene_delta):
         'asset': {'version': '1.0'},
         'cameras': export_cameras(scene_delta.get('cameras', [])),
         'extras': {'lights' : export_lights(scene_delta.get('lamps', []))},
+        'images': export_images(scene_delta.get('images', [])),
         'materials': export_materials(scene_delta.get('materials', []),
             shaders, programs, techniques),
         'meshes': export_meshes(scene_delta.get('meshes', [])),
         'nodes': export_nodes(scene_delta.get('objects', [])),
         'programs': programs,
+        'samplers': {'default':{}},
         'scene': bpy.context.scene.name,
         'scenes': export_scenes(scene_delta.get('scenes', [])),
         'shaders': shaders,
         'techniques': techniques,
+        'textures': export_textures(scene_delta.get('textures', [])),
 
         # TODO
         'animations': {},
-        'images': {},
-        'samplers': {},
         'skins': {},
-        'textures': {},
     }
 
     gltf.update(export_buffers())

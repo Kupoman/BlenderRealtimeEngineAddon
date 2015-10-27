@@ -1,10 +1,17 @@
 import bpy
+import gpu
+
+
 import itertools
 import json
 import collections
 import base64
 import gzip
 import struct
+
+
+EXPORT_SHADERS = False
+
 
 class Buffer:
     ARRAY_BUFFER = 34962
@@ -214,22 +221,49 @@ def export_cameras(cameras):
     return {camera.name: export_camera(camera) for camera in cameras}
 
 
-def export_materials(materials):
+def export_materials(materials, shaders, programs, techniques):
     def export_material(material):
         return {
-            'instanceTechnique': {
-                'technique': 'technique',
                 'values': {
                     'diffuse': list((material.diffuse_color * material.diffuse_intensity)[:]) + [material.alpha],
-
                     'specular': list((material.specular_color * material.specular_intensity)[:]) + [material.specular_alpha],
                     'shininess': material.specular_hardness,
                     'textures': [bpy.path.abspath(ts.texture.image.filepath) for ts in material.texture_slots if ts and ts.texture.type == 'IMAGE'],
                     'uv_layers': [ts.uv_layer for ts in material.texture_slots if ts]
                 }
             }
+    exp_materials = {}
+    for material in materials:
+        exp_materials[material.name] = export_material(material)
+
+        if not EXPORT_SHADERS:
+            continue
+
+        # Handle shaders
+        shader_data = gpu.export_shader(bpy.context.scene, material)
+        fs_bytes = shader_data['fragment'].encode()
+        fs_uri = 'data:text/plain;base64,' + base64.b64encode(fs_bytes).decode('ascii')
+        shaders[material.name+'FS'] = {'type': 35632, 'uri': fs_uri}
+        vs_bytes = shader_data['vertex'].encode()
+        vs_uri = 'data:text/plain;base64,' + base64.b64encode(vs_bytes).decode('ascii')
+        shaders[material.name+'VS'] = {'type': 35633, 'uri': vs_uri}
+
+        # Handle programs
+        programs[material.name+'Program'] = {
+            'attributes' : [],
+            'fragmentShader' : material.name+'FS',
+            'vertexShader' : material.name+'VS',
         }
-    return {material.name: export_material(material) for material in materials}
+
+        # Handle techniques
+        techniques['material.name'+'Technique'] = {
+            'program' : material.name+'Program',
+            'attributes' : {a['varname'] : a['varname'] for a in shader_data['attributes']},
+            'uniforms' : {u['varname'] : u['varname'] for u in shader_data['uniforms']},
+        }
+
+    return exp_materials
+
 
 def export_meshes(meshes):
     def export_mesh(me):
@@ -302,7 +336,7 @@ def export_meshes(meshes):
                     'NORMAL': ndata.name,
                 },
                 'indices': idata.name,
-                'primitive': 4,
+                'mode': 4,
                 'material': mat,
             }
             for i, v in enumerate(tdata):
@@ -371,7 +405,7 @@ def export_nodes(objects):
         if obj.type == 'MESH':
             ob['meshes'] = [obj.data.name]
         elif obj.type == 'LAMP':
-            ob['light'] = obj.data.name
+            ob['extras'] = {'light': obj.data.name}
         elif obj.type == 'CAMERA':
             ob['camera'] = obj.data.name
 
@@ -384,8 +418,10 @@ def export_scenes(scenes):
     def export_scene(scene):
         return {
             'nodes': [ob.name for ob in scene.objects],
-            'background_color': scene.world.horizon_color[:],
-            'active_camera': scene.camera.name,
+            'extras': {
+                'background_color': scene.world.horizon_color[:],
+                'active_camera': scene.camera.name,
+            }
         }
 
     return {scene.name: export_scene(scene) for scene in scenes}
@@ -409,24 +445,29 @@ def export_buffers():
 def export_gltf(scene_delta):
     global g_buffers
 
+    shaders = {}
+    programs = {}
+    techniques = {}
+
     gltf = {
+        'asset': {'version': '1.0'},
         'cameras': export_cameras(scene_delta.get('cameras', [])),
-        'materials': export_materials(scene_delta.get('materials', [])),
+        'extras': {'lights' : export_lights(scene_delta.get('lamps', []))},
+        'materials': export_materials(scene_delta.get('materials', []),
+            shaders, programs, techniques),
         'meshes': export_meshes(scene_delta.get('meshes', [])),
-        'lights': export_lights(scene_delta.get('lamps', [])),
         'nodes': export_nodes(scene_delta.get('objects', [])),
+        'programs': programs,
         'scene': bpy.context.scene.name,
         'scenes': export_scenes(scene_delta.get('scenes', [])),
+        'shaders': shaders,
+        'techniques': techniques,
 
         # TODO
         'animations': {},
-        'asset': {},
         'images': {},
-        'programs': {},
         'samplers': {},
-        'shaders': {},
         'skins': {},
-        'techniques': {},
         'textures': {},
     }
 

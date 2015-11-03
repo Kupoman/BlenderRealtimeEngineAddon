@@ -56,8 +56,7 @@ class RealTimeEngine():
     bl_idname = 'RTE_FRAMEWORK'
     bl_label = "Real Time Engine Framework"
 
-    def __init__(self, program=[], watch_list=DEFAULT_WATCHLIST, converter=None,
-            processor=None):
+    def __init__(self, **kwargs):
         # Display image
         self.width = 1
         self.height = 1
@@ -66,18 +65,23 @@ class RealTimeEngine():
         self.draw_lock = False
         self.override_context = None
 
-        self.converter = converter if converter else _converters.BTFConverter()
-        if processor is None:
+        if 'converter' in kwargs:
+            self.converter = converter
+        else:
+            self.converter = _converters.BTFConverter()
+
+        if 'processor' in kwargs:
+            self.processor = kwargs['processor']
+        else:
             self.display = processors.DoubleBuffer(3, self.draw_callback)
             self.processor = processors.DummyProcessor(self.display)
-        else:
-            self.processor = processor
 
         self.remove_delta = {}
         self.add_delta = {}
         self.update_delta = {}
         self.view_delta = {}
 
+        watch_list = kwargs['watch_list'] if 'watch_list' in kwargs else DEFAULT_WATCHLIST
         self._watch_list = [getattr(bpy.data, i) for i in watch_list]
 
         self._tracking_sets = {}

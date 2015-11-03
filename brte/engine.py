@@ -56,18 +56,22 @@ class RealTimeEngine():
     bl_idname = 'RTE_FRAMEWORK'
     bl_label = "Real Time Engine Framework"
 
-    def __init__(self, program=[], watch_list=DEFAULT_WATCHLIST):
+    def __init__(self, program=[], watch_list=DEFAULT_WATCHLIST, converter=None,
+            processor=None):
         # Display image
         self.width = 1
         self.height = 1
         self.clock = time.perf_counter()
-        self.display = processors.DoubleBuffer(3, self.draw_callback)
 
         self.draw_lock = False
         self.override_context = None
 
-        self.converter = _converters.BTFConverter()
-        self.processor = processors.DummyProcessor(self.display)
+        self.converter = converter if converter else _converters.BTFConverter()
+        if processor is None:
+            self.display = processors.DoubleBuffer(3, self.draw_callback)
+            self.processor = processors.DummyProcessor(self.display)
+        else:
+            self.processor = processor
 
         self.remove_delta = {}
         self.add_delta = {}
@@ -155,7 +159,7 @@ class RealTimeEngine():
         glActiveTexture(GL_TEXTURE0)
         glBindTexture(GL_TEXTURE_2D, self.tex)
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, self.width, self.height, 0, GL_RGB,
-            GL_UNSIGNED_BYTE, self.display.read_buffer)
+            GL_UNSIGNED_BYTE, self.processor.image_buffer)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
 

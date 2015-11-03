@@ -457,7 +457,8 @@ def export_textures(textures):
             'sampler' : 'default',
             'source' : texture.image.name,
         }
-    return {texture.name: export_texture(texture) for texture in textures}
+    return {texture.name: export_texture(texture) for texture in textures
+        if type(texture) == bpy.types.ImageTexture}
 
 
 def export_gltf(scene_delta):

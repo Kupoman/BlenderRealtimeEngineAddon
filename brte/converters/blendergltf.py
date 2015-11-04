@@ -493,6 +493,8 @@ def export_gltf(scene_delta):
     gltf.update(export_buffers())
     g_buffers = []
 
+    gltf = {key: value for key, value in gltf.items() if value}
+
     return gltf
 
 

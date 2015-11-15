@@ -206,7 +206,7 @@ class RealTimeEngine():
         def converter_callback(data):
             self.processor.process_data(data)
 
-        if self.add_delta:
+        if self.add_delta or self.update_delta or self.view_delta:
             self.converter.convert(self.add_delta, self.update_delta, self.remove_delta, self.view_delta, converter_callback)
         self.add_delta.clear()
         self.update_delta.clear()

@@ -408,6 +408,9 @@ def export_nodes(objects):
             ob['extras'] = {'light': obj.data.name}
         elif obj.type == 'CAMERA':
             ob['camera'] = obj.data.name
+        elif obj.type == 'EMPTY' and obj.dupli_group is not None:
+            # Expand dupli-groups
+            ob['children'] += [i.name for i in obj.dupli_group.objects]
 
         return ob
 

@@ -229,7 +229,7 @@ def export_materials(materials, shaders, programs, techniques):
                     'diffuse': list((material.diffuse_color * material.diffuse_intensity)[:]) + [material.alpha],
                     'specular': list((material.specular_color * material.specular_intensity)[:]) + [material.specular_alpha],
                     'shininess': material.specular_hardness,
-                    'textures': [bpy.path.abspath(ts.texture.image.filepath) for ts in material.texture_slots if ts and ts.texture.type == 'IMAGE'],
+                    'textures': [ts.texture.name for ts in material.texture_slots if ts and ts.texture.type == 'IMAGE'],
                     'uv_layers': [ts.uv_layer for ts in material.texture_slots if ts]
                 }
             }

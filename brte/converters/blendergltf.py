@@ -367,7 +367,7 @@ def export_lights(lamps):
                     # TODO: grab values from Blender lamps
                     'constantAttenuation': 1.0,
                     'linearAttenuation': 0.0,
-                    'quadraticAttenuation': 0.0,
+                    'quadraticAttenuation': 1.0 / (0.5 * light.distance ** 2),
                 },
                 'type': 'point',
             }
@@ -381,7 +381,7 @@ def export_lights(lamps):
                     'fallOffAngle': 3.14159265,
                     'fallOffExponent': 0.0,
                     'linearAttenuation': 0.0,
-                    'quadraticAttenuation': 0.0,
+                    'quadraticAttenuation': 1.0 / (0.5 * light.distance ** 2),
                 },
                 'type': 'spot',
             }

@@ -11,6 +11,7 @@ import struct
 
 
 EXPORT_SHADERS = False
+EMBED_IMAGES = False
 
 
 class Buffer:
@@ -447,9 +448,14 @@ def export_buffers():
 
 def export_images(images):
     def export_image(image):
-        pixels = bytearray([int(p * 255) for p in image.pixels])
+        if EMBED_IMAGES:
+            pixels = bytearray([int(p * 255) for p in image.pixels])
+            uri = 'data:text/plain;base64,' + base64.b64encode(pixels).decode('ascii')
+        else:
+            uri = image.filepath.replace('//', '')
+
         return {
-            'uri' : 'data:text/plain;base64,' + base64.b64encode(pixels).decode('ascii'),
+            'uri': uri,
         }
     return {image.name: export_image(image) for image in images}
 

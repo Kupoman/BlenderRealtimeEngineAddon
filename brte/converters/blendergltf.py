@@ -353,6 +353,20 @@ def export_meshes(meshes):
 
 def export_lights(lamps):
     def export_light(light):
+        def calc_att():
+            kl = 0
+            kq = 0
+
+            if light.falloff_type == 'INVERSE_LINEAR':
+                kl = 1 / light.distance
+            elif light.falloff_type == 'INVERSE_SQUARE':
+                kq = 1 / light.distance
+            elif light.falloff_type == 'LINEAR_QUADRATIC_WEIGHTED':
+                kl = light.linear_attenuation * (1 / light.distance)
+                kq = light.quadratic_attenuation * (1 / (light.distance * light.distance))
+
+            return kl, kq
+
         if light.type == 'SUN':
             return {
                 'directional': {
@@ -361,18 +375,20 @@ def export_lights(lamps):
                 'type': 'directional',
             }
         elif light.type == 'POINT':
+            kl, kq = calc_att()
             return {
                 'point': {
                     'color': (light.color * light.energy)[:],
 
                     # TODO: grab values from Blender lamps
-                    'constantAttenuation': 1.0,
-                    'linearAttenuation': 0.0,
-                    'quadraticAttenuation': 1.0 / (0.5 * light.distance ** 2),
+                    'constantAttenuation': 1,
+                    'linearAttenuation': kl,
+                    'quadraticAttenuation': kq,
                 },
                 'type': 'point',
             }
         elif light.type == 'SPOT':
+            kl, kq = calc_att()
             return {
                 'spot': {
                     'color': (light.color * light.energy)[:],
@@ -381,8 +397,8 @@ def export_lights(lamps):
                     'constantAttenuation': 1.0,
                     'fallOffAngle': 3.14159265,
                     'fallOffExponent': 0.0,
-                    'linearAttenuation': 0.0,
-                    'quadraticAttenuation': 1.0 / (0.5 * light.distance ** 2),
+                    'linearAttenuation': kl,
+                    'quadraticAttenuation': kq,
                 },
                 'type': 'spot',
             }

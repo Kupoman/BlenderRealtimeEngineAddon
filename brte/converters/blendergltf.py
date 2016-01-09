@@ -12,7 +12,31 @@ import struct
 
 EXPORT_SHADERS = False
 EMBED_IMAGES = False
+class Vertex:
+    def __init__(self, mesh, loop):
+        vi = loop.vertex_index
+        i = loop.index
+        self.co = mesh.vertices[vi].co.freeze()
+        self.normal = loop.normal.freeze()
+        self.uvs = tuple(layer.data[i].uv.freeze() for layer in mesh.uv_layers)
+        self.loop_indices = [i]
 
+        self.index = 0
+
+    def __hash__(self):
+        return hash((self.co, self.normal, self.uvs))
+
+    def __eq__(self, other):
+        eq = True
+        eq = eq and self.co == other.co
+        eq = eq and self.normal == other.normal
+        eq = eq and self.uvs == other.uvs
+
+        if eq:
+            indices = self.loop_indices + other.loop_indices
+            self.loop_indices = indices
+            other.loop_indices = indices
+        return eq
 
 class Buffer:
     ARRAY_BUFFER = 34962
@@ -284,44 +308,44 @@ def export_meshes(meshes):
         buf = Buffer(me.name)
 
         # Vertex data
-        va = buf.add_view(vertex_size * num_loops, Buffer.ARRAY_BUFFER)
-        vdata = buf.add_accessor(va, 0, vertex_size, Buffer.FLOAT, num_loops, Buffer.VEC3)
-        ndata = buf.add_accessor(va, 12, vertex_size, Buffer.FLOAT, num_loops, Buffer.VEC3)
-        tdata = [buf.add_accessor(va, 24 + 8 * i, vertex_size, Buffer.FLOAT, num_loops, Buffer.VEC2) for i in range(num_uv_layers)]
 
-        for i, loop in enumerate(me.loops):
-            vtx = me.vertices[loop.vertex_index]
-            #print('row', i)
-            #print('vertex', vtx.co)
-            #print('normal', loop.normal)
+        vert_list = { Vertex(me, loop) : 0 for loop in me.loops}.keys()
+        num_verts = len(vert_list)
+        va = buf.add_view(vertex_size * num_verts, Buffer.ARRAY_BUFFER)
+        vdata = buf.add_accessor(va, 0, vertex_size, Buffer.FLOAT, num_verts, Buffer.VEC3)
+        ndata = buf.add_accessor(va, 12, vertex_size, Buffer.FLOAT, num_verts, Buffer.VEC3)
+        tdata = [buf.add_accessor(va, 24 + 8 * i, vertex_size, Buffer.FLOAT, num_verts, Buffer.VEC2) for i in range(num_uv_layers)]
 
+        for i, vtx in enumerate(vert_list):
+            vtx.index = i
             co = vtx.co
-            normal = loop.normal
+            normal = vtx.normal
 
             for j in range(3):
                 vdata[(i * 3) + j] = co[j]
                 ndata[(i * 3) + j] = normal[j]
 
-            for j, uv_layer in enumerate(me.uv_layers):
-                tdata[j][i * 2] = uv_layer.data[i].uv.x
-                tdata[j][i * 2 + 1] = uv_layer.data[i].uv.y
+            for j, uv in enumerate(vtx.uvs):
+                tdata[j][i * 2] = uv.x
+                tdata[j][i * 2 + 1] = uv.y
 
         prims = {ma.name if ma else '': [] for ma in me.materials}
         if not prims:
             prims = {'': []}
 
         # Index data
+        vert_dict = {i : v for v in vert_list for i in v.loop_indices}
         for poly in me.polygons:
             first = poly.loop_start
             mat = me.materials[poly.material_index]
             prim = prims[mat.name if mat else '']
+            indices = [vert_dict[i].index for i in range(first, first+poly.loop_total)]
 
             if poly.loop_total == 3:
-                prim += (first, first + 1, first + 2)
+                prim += indices
             elif poly.loop_total > 3:
-                last = first + poly.loop_total - 1
-                for i in range(first, last - 1):
-                    prim += (last, i, i + 1)
+                for i in range(poly.loop_total-1):
+                    prim += (indices[-1], indices[i], indices[i + 1])
             else:
                 raise RuntimeError("Invalid polygon with {} vertexes.".format(poly.loop_total))
 

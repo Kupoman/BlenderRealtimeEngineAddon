@@ -14,7 +14,7 @@ import bpy
 
 
 class BTFConverter:
-    def convert(self, add_delta, update_delta, remove_delta, view_delta, callback):
+    def convert(self, add_delta, update_delta, remove_delta, view_delta):
         for key, value in update_delta.items():
             if value:
                 add_delta[key] = value
@@ -23,8 +23,7 @@ class BTFConverter:
 
         self.export_view(view_delta, data)
 
-        if callback:
-            callback(data)
+        return data
 
     def export_view(self, view_delta, gltf):
         if 'extras' not in gltf:

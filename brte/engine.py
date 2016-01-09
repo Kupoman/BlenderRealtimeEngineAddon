@@ -3,11 +3,13 @@ if "bpy" in locals():
     imp.reload(socket_api)
     imp.reload(_converters)
     imp.reload(processors)
+    imp.reload(converter_thread)
 else:
     import bpy
     from . import socket_api
     from . import converters as _converters
     from . import processors
+    from . import converter_thread
 
 import os
 import socket
@@ -16,6 +18,7 @@ import subprocess
 import sys
 import time
 import collections
+import queue
 
 import bpy
 import mathutils
@@ -62,8 +65,13 @@ class RealTimeEngine():
         self.height = 1
         self.clock = time.perf_counter()
 
-        self.draw_lock = False
-        self.override_context = None
+        self.queue_pre_convert = queue.Queue()
+        self.queue_post_convert = queue.Queue()
+
+        converter = kwargs.get('converter', _converters.BTFConverter())
+        self.thread_converter = converter_thread.ConverterThread(converter,
+            self.queue_pre_convert, self.queue_post_convert)
+        self.thread_converter.start()
 
         if 'converter' in kwargs:
             self.converter = kwargs['converter']
@@ -131,7 +139,6 @@ class RealTimeEngine():
 
     def view_draw(self, context):
         """ Called when viewport settings change """
-        self.override_context = context.copy()
         region = context.region
         view = context.region_data
 
@@ -203,13 +210,22 @@ class RealTimeEngine():
         self.tag_redraw()
 
     def main_update(self, dt):
-        def converter_callback(data):
-            self.processor.process_data(data)
-
         if self.add_delta or self.update_delta or self.view_delta:
-            self.converter.convert(self.add_delta, self.update_delta, self.remove_delta, self.view_delta, converter_callback)
+            self.queue_pre_convert.put((
+                self.add_delta.copy(),
+                self.update_delta.copy(),
+                self.remove_delta.copy(),
+                self.view_delta.copy(),
+            ))
+
         self.add_delta.clear()
         self.update_delta.clear()
         self.remove_delta.clear()
         self.view_delta.clear()
+
+        if not self.queue_post_convert.empty():
+            data = self.queue_post_convert.get()
+            self.processor.process_data(data)
+            self.queue_post_convert.task_done()
+
         self.processor.update(dt)

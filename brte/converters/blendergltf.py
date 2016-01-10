@@ -377,7 +377,7 @@ def export_meshes(meshes):
         g_buffers.append(buf)
         return gltf_mesh
 
-    return {me.name: export_mesh(me) for me in meshes}
+    return {me.name: export_mesh(me) for me in meshes if me.users != 0}
 
 
 def export_lights(lamps):

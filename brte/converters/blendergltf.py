@@ -337,8 +337,11 @@ def export_meshes(meshes):
         vert_dict = {i : v for v in vert_list for i in v.loop_indices}
         for poly in me.polygons:
             first = poly.loop_start
-            mat = me.materials[poly.material_index]
-            prim = prims[mat.name if mat else '']
+            if len(me.materials) == 0:
+                prim = prims['']
+            else:
+                mat = me.materials[poly.material_index]
+                prim = prims[mat.name if mat else '']
             indices = [vert_dict[i].index for i in range(first, first+poly.loop_total)]
 
             if poly.loop_total == 3:

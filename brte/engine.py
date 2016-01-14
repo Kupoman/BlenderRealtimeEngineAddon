@@ -66,7 +66,7 @@ class RealTimeEngine():
         self.override_context = None
 
         if 'converter' in kwargs:
-            self.converter = converter
+            self.converter = kwargs['converter']
         else:
             self.converter = _converters.BTFConverter()
 

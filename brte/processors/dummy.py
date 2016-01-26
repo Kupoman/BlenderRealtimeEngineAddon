@@ -6,11 +6,11 @@ import math
 class DummyProcessor:
     '''An example processor that simply changes the viewport color'''
 
-    def __init__(self, buffer):
+    def __init__(self):
         '''Construct a DummyProcessor with a buffer for drawing into'''
 
-        self.buffer = buffer
         self.value = 0
+        self.buffer = (ctypes.c_ubyte * 3)(0)
 
     def process_data(self, data):
         '''Accept converted data to be consumed by the processor'''
@@ -27,10 +27,7 @@ class DummyProcessor:
         alpha = self.value / interval
 
         alpha = 1.0 - (0.5 * math.cos(2 * math.pi * alpha) + 0.5)
-        ctypes.memset(self.buffer.write_buffer, int(255*alpha), self.buffer.size)
-        self.buffer.swap()
+        ctypes.memset(self.buffer, int(255*alpha), 3)
 
-    @property
-    def image_buffer(self):
-        '''Holds the image data to be displayed by the engine'''
-        return self.buffer.read_buffer
+        return None
+        return ctypes.byref(self.buffer)

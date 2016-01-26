@@ -4,12 +4,14 @@ if "bpy" in locals():
     imp.reload(_converters)
     imp.reload(processors)
     imp.reload(converter_thread)
+    imp.reload(processor_thread)
 else:
     import bpy
     from . import socket_api
     from . import converters as _converters
     from . import processors
     from . import converter_thread
+    from . import processor_thread
 
 import os
 import socket
@@ -17,6 +19,7 @@ import struct
 import subprocess
 import sys
 import time
+import threading
 import collections
 import queue
 
@@ -43,11 +46,14 @@ DEFAULT_WATCHLIST = [
 ]
 
 
-class _BaseFunc:
-    def __call__(self, data_set):
-        pass
-
 ViewportTuple = collections.namedtuple('Viewport', ('height', 'width'))
+
+
+# Currently need some things stored globally so they can be cleaned up after
+# losing the RealTimeEngine reference
+class G:
+    done_event = None
+
 
 def get_collection_name(collection):
     class_name = collection.rna_type.__class__.__name__
@@ -65,24 +71,23 @@ class RealTimeEngine():
         self.height = 1
         self.clock = time.perf_counter()
 
+        G.done_event = threading.Event()
+
         self.queue_pre_convert = queue.Queue()
         self.queue_post_convert = queue.Queue()
+        self.queue_update = queue.Queue()
+        self.queue_image = queue.Queue()
 
         converter = kwargs.get('converter', _converters.BTFConverter())
         self.thread_converter = converter_thread.ConverterThread(converter,
-            self.queue_pre_convert, self.queue_post_convert)
+            self.queue_pre_convert, self.queue_post_convert, G.done_event)
         self.thread_converter.start()
 
-        if 'converter' in kwargs:
-            self.converter = kwargs['converter']
-        else:
-            self.converter = _converters.BTFConverter()
-
-        if 'processor' in kwargs:
-            self.processor = kwargs['processor']
-        else:
-            self.display = processors.DoubleBuffer(3, self.draw_callback)
-            self.processor = processors.DummyProcessor(self.display)
+        processor = kwargs.get('processor', processors.DummyProcessor())
+        self.thread_processor = processor_thread.ProcessorThread(processor,
+            self.queue_post_convert, self.queue_update, self.queue_image,
+            G.done_event)
+        self.thread_processor.start()
 
         self.remove_delta = {}
         self.add_delta = {}
@@ -110,10 +115,12 @@ class RealTimeEngine():
                 self.main_update(dt)
             except ReferenceError:
                 bpy.app.handlers.scene_update_post.remove(main_loop)
+                G.done_event.set()
 
         bpy.app.handlers.scene_update_post.append(main_loop)
 
         self.tex = glGenTextures(1)
+
 
     def view_update(self, context):
         """ Called when the scene is changed """
@@ -150,7 +157,19 @@ class RealTimeEngine():
 
         self.update_view(vmat, pmat, viewport)
 
+
         glPushAttrib(GL_ALL_ATTRIB_BITS)
+        glActiveTexture(GL_TEXTURE0)
+        glBindTexture(GL_TEXTURE_2D, self.tex)
+        try:
+            image_ref = self.queue_image.get_nowait()
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, self.width, self.height, 0, GL_RGB,
+                GL_UNSIGNED_BYTE, image_ref)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+            self.queue_image.task_done()
+        except queue.Empty:
+            pass
 
         glDisable(GL_DEPTH_TEST)
         glDisable(GL_CULL_FACE)
@@ -166,13 +185,6 @@ class RealTimeEngine():
         glMatrixMode(GL_PROJECTION)
         glPushMatrix()
         glLoadIdentity()
-
-        glActiveTexture(GL_TEXTURE0)
-        glBindTexture(GL_TEXTURE_2D, self.tex)
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, self.width, self.height, 0, GL_RGB,
-            GL_UNSIGNED_BYTE, self.processor.image_buffer)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
 
         glBegin(GL_QUADS)
         glColor3f(1.0, 1.0, 1.0)
@@ -223,9 +235,13 @@ class RealTimeEngine():
         self.remove_delta.clear()
         self.view_delta.clear()
 
-        if not self.queue_post_convert.empty():
-            data = self.queue_post_convert.get()
-            self.processor.process_data(data)
-            self.queue_post_convert.task_done()
+        self.queue_update.put(dt)
 
-        self.processor.update(dt)
+        self.draw_callback()
+
+        # print('Timestep:', dt)
+        # print('Approximate queue sizes:')
+        # print('\tPre Convert:', self.queue_pre_convert.qsize())
+        # print('\tPost Convert:', self.queue_post_convert.qsize())
+        # print('\tUpdate:', self.queue_update.qsize())
+        # print('\tImage:', self.queue_image.qsize())

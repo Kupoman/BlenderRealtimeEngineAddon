@@ -21,7 +21,7 @@ class BTFConverter:
 
         data = blendergltf.export_gltf(add_delta)
 
-        self.export_view(view_delta, data)
+        # self.export_view(view_delta, data)
 
         return data
 

@@ -19,5 +19,3 @@ class ConverterThread(threading.Thread):
             output = self.converter.convert(add, update, remove, view)
             self.in_queue.task_done()
             self.out_queue.put(output)
-
-        print('Ending converter thread')

@@ -39,5 +39,3 @@ class ProcessorThread(threading.Thread):
                 pass
 
             time.sleep(0.001)
-
-        print('Ending processor thread')

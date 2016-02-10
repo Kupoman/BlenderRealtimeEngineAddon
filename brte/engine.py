@@ -239,7 +239,7 @@ class RealTimeEngine():
 
         self.draw_callback()
 
-        # print('Timestep:', dt)
+        # Useful debug information for checking if a queue is filling up
         # print('Approximate queue sizes:')
         # print('\tPre Convert:', self.queue_pre_convert.qsize())
         # print('\tPost Convert:', self.queue_post_convert.qsize())

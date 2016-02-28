@@ -29,5 +29,4 @@ class DummyProcessor:
         alpha = 1.0 - (0.5 * math.cos(2 * math.pi * alpha) + 0.5)
         ctypes.memset(self.buffer, int(255*alpha), 3)
 
-        return None
         return ctypes.byref(self.buffer)

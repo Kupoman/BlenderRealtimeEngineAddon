@@ -65,6 +65,9 @@ class RealTimeEngine():
     bl_idname = 'RTE_FRAMEWORK'
     bl_label = "Real Time Engine Framework"
 
+    def __del__(self):
+        G.done_event.set()
+
     def __init__(self, **kwargs):
         # Display image
         self.width = 1

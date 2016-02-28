@@ -66,7 +66,8 @@ class RealTimeEngine():
     bl_label = "Real Time Engine Framework"
 
     def __del__(self):
-        G.done_event.set()
+        if G.done_event:
+            G.done_event.set()
 
     def __init__(self, **kwargs):
         # Display image

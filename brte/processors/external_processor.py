@@ -18,8 +18,6 @@ class ExternalProcessor:
         self.value = 0
         self.is_connected = False
 
-        cmd = ['python', 'D:/Documents/Dropbox/projects/BlenderRealtimeEngineAddon/brte/zmq_server.py']
-
         self.process = subprocess.Popen(command)
 
         self.listen_socket = socket.socket()

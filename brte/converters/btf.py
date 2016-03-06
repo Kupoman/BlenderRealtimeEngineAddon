@@ -13,6 +13,10 @@ import math
 import bpy
 
 
+def togl(matrix):
+    return [i for col in matrix.col for i in col]
+
+
 class BTFConverter:
     def convert(self, add_delta, update_delta, remove_delta, view_delta):
         for key, value in update_delta.items():
@@ -33,6 +37,6 @@ class BTFConverter:
             gltf['extras']['view'] = {
                 'width' : view_delta['viewport'].width,
                 'height' : view_delta['viewport'].width,
-                'projection_matrix': view_delta['projection_matrix'],
-                'view_matrix': view_delta['view_matrix'],
+                'projection_matrix': togl(view_delta['projection_matrix']),
+                'view_matrix': togl(view_delta['view_matrix']),
             }

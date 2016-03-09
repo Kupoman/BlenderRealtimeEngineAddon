@@ -124,6 +124,9 @@ class RealTimeEngine():
         bpy.app.handlers.scene_update_post.append(main_loop)
 
         self.tex = glGenTextures(1)
+        glBindTexture(GL_TEXTURE_2D, self.tex)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, 1, 1, 0,
+            GL_RGB, GL_UNSIGNED_BYTE, struct.pack('=BBB', 0, 0, 0))
 
 
     def view_update(self, context):

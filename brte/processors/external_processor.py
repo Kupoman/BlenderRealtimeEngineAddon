@@ -85,4 +85,4 @@ class ExternalProcessor:
         # print('Blender: Update time: {}ms'.format(transfer_t * 1000))
         # print('Blender: Speed: {} Gbit/s'.format(data_size/1024/1024/1024*8 / transfer_t))
 
-        return ctypes.byref(self.buffer)
+        return self.width, self.height, ctypes.byref(self.buffer)

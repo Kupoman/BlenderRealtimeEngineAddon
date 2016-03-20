@@ -16,6 +16,10 @@ class DummyProcessor:
         '''Accept converted data to be consumed by the processor'''
         pass
 
+    def destroy(self):
+        '''Cleanup function called when the processor is no longer needed'''
+        pass
+
     def update(self, timestep):
         '''Advance the processor by the timestep and update the viewport image'''
 

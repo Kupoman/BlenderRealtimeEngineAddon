@@ -32,8 +32,6 @@ class ExternalProcessor:
         if self.is_connected:
             self.socket.close()
 
-        self.process.kill()
-
     def _connect(self):
         if not self.is_connected:
             try:

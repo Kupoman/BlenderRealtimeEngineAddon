@@ -25,18 +25,22 @@ class BTFConverter:
 
         data = blendergltf.export_gltf(add_delta)
 
-        self.export_view(view_delta, data)
+        if view_delta:
+            self.export_view(view_delta, data)
 
         return data
 
     def export_view(self, view_delta, gltf):
         if 'extras' not in gltf:
             gltf['extras'] = {}
+        gltf['extras']['view'] = {}
 
         if 'viewport' in view_delta:
             gltf['extras']['view'] = {
                 'width' : view_delta['viewport'].width,
-                'height' : view_delta['viewport'].width,
-                'projection_matrix': togl(view_delta['projection_matrix']),
-                'view_matrix': togl(view_delta['view_matrix']),
+                'height' : view_delta['viewport'].height,
             }
+        if 'projection_matrix' in view_delta:
+            gltf['extras']['view']['projection_matrix'] = togl(view_delta['projection_matrix'])
+        if 'view_matrix' in view_delta:
+            gltf['extras']['view']['view_matrix'] = togl(view_delta['view_matrix'])

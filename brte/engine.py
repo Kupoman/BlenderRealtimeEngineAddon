@@ -91,6 +91,8 @@ class RealTimeEngine():
             G.done_event)
         self.thread_processor.start()
 
+        self.use_bgr_texture = kwargs.get('use_bgr_texture', False)
+
         self.remove_delta = {}
         self.add_delta = {}
         self.update_delta = {}
@@ -168,7 +170,8 @@ class RealTimeEngine():
         glBindTexture(GL_TEXTURE_2D, self.tex)
         try:
             image_ref = self.queue_image.get_nowait()
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, image_ref[0], image_ref[1], 0, GL_RGB,
+            image_format = GL_BGR if self.use_bgr_texture else GL_RGB
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, image_ref[0], image_ref[1], 0, image_format,
                 GL_UNSIGNED_BYTE, image_ref[2])
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)

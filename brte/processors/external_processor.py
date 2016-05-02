@@ -22,23 +22,22 @@ class ExternalProcessor:
 
         self.listen_socket = socket.socket()
         self.listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 6 * 2**25)
+        self.listen_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.listen_socket.bind(('localhost', port))
-        self.listen_socket.listen(3)
+        self.listen_socket.listen(20)
         self.listen_socket.settimeout(5)
 
     def destroy(self):
+        self.listen_socket.shutdown(socket.SHUT_RDWR)
         self.listen_socket.close()
         if self.is_connected:
+            self.socket.shutdown(socket.SHUT_RDWR)
             self.socket.close()
 
     def _connect(self):
         if not self.is_connected:
             try:
                 self.socket = self.listen_socket.accept()[0]
-                self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 6 * 2**20)
-                self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-                self.socket.settimeout(3)
                 self.is_connected = True
                 print('Connected to external process')
             except:

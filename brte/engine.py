@@ -53,6 +53,18 @@ ViewportTuple = collections.namedtuple('Viewport', ('height', 'width'))
 # losing the RealTimeEngine reference
 class G:
     done_event = None
+    thread_converter = None
+    thread_processor = None
+
+    def cleanup_threads():
+        if G.done_event is not None:
+            G.done_event.set()
+        if G.thread_converter is not None:
+            G.thread_converter.join()
+            G.thread_converter = None
+        if G.thread_processor is not None:
+            G.thread_processor.join()
+            G.thread_processor = None
 
 
 def get_collection_name(collection):
@@ -65,31 +77,29 @@ class RealTimeEngine():
     bl_idname = 'RTE_FRAMEWORK'
     bl_label = "Real Time Engine Framework"
 
-    def __del__(self):
-        if G.done_event:
-            G.done_event.set()
-
     def __init__(self, **kwargs):
         # Display image
         self.clock = time.perf_counter()
-
-        G.done_event = threading.Event()
 
         self.queue_pre_convert = queue.Queue()
         self.queue_post_convert = queue.Queue()
         self.queue_update = queue.Queue()
         self.queue_image = queue.Queue()
 
+        G.cleanup_threads()
+
+        G.done_event = threading.Event()
+
         converter = kwargs.get('converter', _converters.BTFConverter())
-        self.thread_converter = converter_thread.ConverterThread(converter,
+        G.thread_converter = converter_thread.ConverterThread(converter,
             self.queue_pre_convert, self.queue_post_convert, G.done_event)
-        self.thread_converter.start()
+        G.thread_converter.start()
 
         processor = kwargs.get('processor', processors.DummyProcessor())
-        self.thread_processor = processor_thread.ProcessorThread(processor,
+        G.thread_processor = processor_thread.ProcessorThread(processor,
             self.queue_post_convert, self.queue_update, self.queue_image,
             G.done_event)
-        self.thread_processor.start()
+        G.thread_processor.start()
 
         self.use_bgr_texture = kwargs.get('use_bgr_texture', False)
 
@@ -110,7 +120,6 @@ class RealTimeEngine():
         self._old_pmat = None
         self._old_viewport = None
 
-
         def main_loop(scene):
             try:
                 new_time = time.perf_counter()
@@ -119,7 +128,7 @@ class RealTimeEngine():
                 self.main_update(dt)
             except ReferenceError:
                 bpy.app.handlers.scene_update_post.remove(main_loop)
-                G.done_event.set()
+                G.cleanup_threads()
 
         bpy.app.handlers.scene_update_post.append(main_loop)
 

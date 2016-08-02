@@ -18,8 +18,6 @@ class ExternalProcessor:
         self.value = 0
         self.is_connected = False
 
-        self.process = subprocess.Popen(command)
-
         self.listen_socket = socket.socket()
         self.listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.listen_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -27,12 +25,14 @@ class ExternalProcessor:
         self.listen_socket.listen(20)
         self.listen_socket.settimeout(5)
 
+        self.process = subprocess.Popen(command)
+
     def destroy(self):
-        self.listen_socket.shutdown(socket.SHUT_RDWR)
-        self.listen_socket.close()
-        if self.is_connected:
+        if hasattr(self, "socket"):
             self.socket.shutdown(socket.SHUT_RDWR)
             self.socket.close()
+        self.listen_socket.shutdown(socket.SHUT_RDWR)
+        self.listen_socket.close()
 
     def _connect(self):
         if not self.is_connected:

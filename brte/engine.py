@@ -137,6 +137,28 @@ class RealTimeEngine():
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, 1, 1, 0,
             GL_RGB, GL_UNSIGNED_BYTE, struct.pack('=BBB', 0, 0, 0))
 
+    @classmethod
+    def register(cls):
+        render_engine_class = cls
+        class LaunchGame(bpy.types.Operator):
+            '''Launch the game in a separate window'''
+            bl_idname = '{}.launch_game'.format(cls.bl_idname.lower())
+            bl_label = 'Launch Game'
+
+            @classmethod
+            def poll(cls, context):
+                return context.scene.render.engine == render_engine_class.bl_idname
+
+            def execute(self, context):
+                try:
+                    cls.launch_game()
+                except:
+                    self.report({'ERROR'}, str(sys.exc_info()[1]))
+                return {'FINISHED'}
+
+        bpy.utils.register_class(LaunchGame)
+        km = bpy.context.window_manager.keyconfigs.default.keymaps['Screen']
+        ki = km.keymap_items.new(LaunchGame.bl_idname, 'P', 'PRESS')
 
     def view_update(self, context):
         """ Called when the scene is changed """
@@ -262,3 +284,7 @@ class RealTimeEngine():
         # print('\tPost Convert:', self.queue_post_convert.qsize())
         # print('\tUpdate:', self.queue_update.qsize())
         # print('\tImage:', self.queue_image.qsize())
+
+    @classmethod
+    def launch_game(cls):
+        pass

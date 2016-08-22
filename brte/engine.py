@@ -157,8 +157,9 @@ class RealTimeEngine():
                 return {'FINISHED'}
 
         bpy.utils.register_class(LaunchGame)
-        km = bpy.context.window_manager.keyconfigs.default.keymaps['Screen']
-        ki = km.keymap_items.new(LaunchGame.bl_idname, 'P', 'PRESS')
+        if not bpy.app.background:
+            km = bpy.context.window_manager.keyconfigs.default.keymaps['Screen']
+            ki = km.keymap_items.new(LaunchGame.bl_idname, 'P', 'PRESS')
 
     def view_update(self, context):
         """ Called when the scene is changed """

@@ -30,7 +30,7 @@ from OpenGL.GL import *
 
 
 DEFAULT_WATCHLIST = [
-    "actions",
+    #"actions",
     #"armatures",
     "cameras",
     "images",

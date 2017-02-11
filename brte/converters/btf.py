@@ -4,7 +4,7 @@ if 'imported' in locals():
     imp.reload(blendergltf)
 else:
     imported = True
-    from . import blendergltf
+    import blendergltf
 
 
 import json

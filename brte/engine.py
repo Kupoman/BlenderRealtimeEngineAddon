@@ -137,6 +137,9 @@ class RealTimeEngine():
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, 1, 1, 0,
             GL_RGB, GL_UNSIGNED_BYTE, struct.pack('=BBB', 0, 0, 0))
 
+    def __del__(self):
+        G.cleanup_threads()
+
     @classmethod
     def register(cls):
         render_engine_class = cls

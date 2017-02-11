@@ -23,7 +23,13 @@ class BTFConverter:
             if value:
                 add_delta[key] = value
 
-        data = blendergltf.export_gltf(add_delta)
+        gltf_settings = {
+            'images_data_storage': 'REFERENCE',
+            'nodes_export_hidden': True,
+            'ext_export_physics': True,
+            'ext_export_actions': True,
+        }
+        data = blendergltf.export_gltf(add_delta, gltf_settings)
 
         if view_delta:
             self.export_view(view_delta, data)

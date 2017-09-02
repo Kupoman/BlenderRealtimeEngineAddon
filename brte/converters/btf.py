@@ -23,11 +23,15 @@ class BTFConverter:
             if value:
                 add_delta[key] = value
 
+        available_extensions = blendergltf.extension_exporters
         gltf_settings = {
             'images_data_storage': 'REFERENCE',
             'nodes_export_hidden': True,
-            'ext_export_physics': True,
-            'ext_export_actions': True,
+            'images_allow_srgb': True,
+            'extension_exporters': [
+                available_extensions.khr_materials_common.KhrMaterialsCommon(),
+                available_extensions.blender_physics.BlenderPhysics(),
+            ],
         }
         data = blendergltf.export_gltf(add_delta, gltf_settings)
 

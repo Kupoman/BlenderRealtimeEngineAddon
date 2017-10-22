@@ -121,6 +121,13 @@ class RealTimeEngine():
         self._old_viewport = None
 
         def main_loop(scene):
+            if threading.get_ident() != threading.main_thread().ident:
+                print("Wrong thread", threading.current_thread())
+                import inspect
+                for i in inspect.stack():
+                    print(str(i))
+                return
+
             try:
                 new_time = time.perf_counter()
                 dt = new_time - self.clock

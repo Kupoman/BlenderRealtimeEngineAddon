@@ -29,6 +29,7 @@ class BTFConverter:
             'nodes_export_hidden': True,
             'images_allow_srgb': True,
             'asset_profile': 'DESKTOP',
+            'meshes_apply_modifiers': False, # Cannot be done in a thread
             'extension_exporters': [
                 available_extensions.khr_materials_common.KhrMaterialsCommon(),
                 available_extensions.blender_physics.BlenderPhysics(),

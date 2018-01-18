@@ -29,9 +29,15 @@ class ExternalProcessor:
 
     def destroy(self):
         if hasattr(self, "socket"):
-            self.socket.shutdown(socket.SHUT_RDWR)
+            try:
+                self.socket.shutdown(socket.SHUT_RDWR)
+            except RuntimeError:
+                pass
             self.socket.close()
-        self.listen_socket.shutdown(socket.SHUT_RDWR)
+        try:
+            self.listen_socket.shutdown(socket.SHUT_RDWR)
+        except RuntimeError:
+            pass
         self.listen_socket.close()
 
     def _connect(self):
@@ -51,8 +57,8 @@ class ExternalProcessor:
 
         payload = json.dumps(data, check_circular=False).encode('ascii')
 
-        self.socket.send(struct.pack('=HI', MSG_DATA, len(payload)))
-        self.socket.send(payload)
+        self.socket.sendall(struct.pack('=HI', MSG_DATA, len(payload)))
+        self.socket.sendall(payload)
         self.socket.recv(1)
 
     def update(self, timestep):
@@ -61,7 +67,7 @@ class ExternalProcessor:
         if not self.is_connected:
             return None
 
-        self.socket.send(struct.pack('=Hf', MSG_UPDATE, timestep))
+        self.socket.sendall(struct.pack('=Hf', MSG_UPDATE, timestep))
 
         start = time.perf_counter()
         width, height = struct.unpack('=HH', self.socket.recv(4))

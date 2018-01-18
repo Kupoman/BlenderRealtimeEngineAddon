@@ -57,6 +57,10 @@ class G:
     thread_processor = None
 
     def cleanup_threads():
+        if threading.get_ident() != threading.main_thread().ident:
+            # Only let the main thread cleanup threads
+            return
+
         if G.done_event is not None:
             G.done_event.set()
         if G.thread_converter is not None:

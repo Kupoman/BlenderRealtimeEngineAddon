@@ -31,12 +31,12 @@ class ExternalProcessor:
         if hasattr(self, "socket"):
             try:
                 self.socket.shutdown(socket.SHUT_RDWR)
-            except RuntimeError:
+            except OSError:
                 pass
             self.socket.close()
         try:
             self.listen_socket.shutdown(socket.SHUT_RDWR)
-        except RuntimeError:
+        except OSError:
             pass
         self.listen_socket.close()
 
